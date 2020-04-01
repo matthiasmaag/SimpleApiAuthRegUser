@@ -3,23 +3,27 @@ using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using SimpleApiAuthRegUser.Entities;
+using SimpleApiAuthRegUser.Helpers;
+using SimpleApiAuthRegUser.Models;
 using SimpleApiAuthRegUser.Models.Users;
+using SimpleApiAuthRegUser.Services;
 
 namespace SimpleApiAuthRegUser.Controllers
 {
     [Authorize]
     [ApiController]
-    [Route(("Controller"))]
+    [Route("Controller")]
     public class UsersController : ControllerBase
     {
-        private IUserService _userService;
-        private IMapper _mapper;
         private readonly AppSettings _appSettings;
+        private readonly IMapper _mapper;
+        private readonly IUserService _userService;
 
         public UsersController(
             IUserService userService,
@@ -30,23 +34,20 @@ namespace SimpleApiAuthRegUser.Controllers
             _mapper = mapper;
             _appSettings = appSettings.Value;
         }
-        
+
         [AllowAnonymous]
         [HttpPost("authenticate")]
         public IActionResult Authenticate([FromBody] AuthenticateModel model)
         {
             var user = _userService.Authenticate(model.Username, model.Password);
 
-            if (user == null)
-            {
-                return BadRequest(new {message = "Username or password is incorrect"});
-            }
+            if (user == null) return BadRequest(new {message = "Username or password is incorrect"});
 
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.ASCII.GetBytes(_appSettings.Secret);
-            var tokenDescriptor = new SecurityTokenDescriptor()
+            var tokenDescriptor = new SecurityTokenDescriptor
             {
-                Subject = new ClaimsIdentity(new Claim[]
+                Subject = new ClaimsIdentity(new[]
                 {
                     new Claim(ClaimTypes.Name, user.Id.ToString())
                 }),
@@ -56,16 +57,16 @@ namespace SimpleApiAuthRegUser.Controllers
             };
             var token = tokenHandler.CreateToken(tokenDescriptor);
             var tokenString = tokenHandler.WriteToken(token);
-            
+
             //return basic user info and authentication token
-            return Ok((new
+            return Ok(new
             {
-                Id = user.Id,
-                Username = user.Username,
+                user.Id,
+                user.Username,
                 Firstname = user.FirstName,
-                LastName = user.LastName,
+                user.LastName,
                 Token = tokenString
-            }));
+            });
         }
 
         [AllowAnonymous]
@@ -84,10 +85,10 @@ namespace SimpleApiAuthRegUser.Controllers
             catch (AppException ex)
             {
                 // return error message if there was an exception
-                return BadRequest((new {message = ex.message}));
+                return BadRequest(new {message = ex.Message});
             }
         }
-        
+
         [HttpGet]
         public IActionResult GetAll()
         {
@@ -105,7 +106,7 @@ namespace SimpleApiAuthRegUser.Controllers
         }
 
         [HttpPut("{id}")]
-        public IActionResult Update(int id, [FromBody]UpdateModel model)
+        public IActionResult Update(int id, [FromBody] UpdateModel model)
         {
             // map model to entity and set id
             var user = _mapper.Map<User>(model);
@@ -120,7 +121,7 @@ namespace SimpleApiAuthRegUser.Controllers
             catch (AppException ex)
             {
                 // return error message if there was an exception
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new {message = ex.Message});
             }
         }
 
